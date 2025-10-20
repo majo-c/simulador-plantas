@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌱 Simulador de Crecimiento de Plantas Mejorado</title>
+<style>
+  body {
+    font-family: "Poppins", sans-serif;
+    background: linear-gradient(#d4f7da, #c7f0cd);
+    display: flex;
+    flex-direction: row;
+    margin: 0;
+    overflow: hidden;
+    transition: background 2s ease;
+  }
+
+  /* Panel izquierdo */
+  .contenedor {
+    flex: 3;
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-end;
+    height: 100vh;
+    position: relative;
+  }
+
+  .planta {
+    position: relative;
+    width: 130px;
+    height: 320px;
+    cursor: pointer;
+    transition: transform 0.4s;
+  }
+
+  .planta:hover {
+    transform: scale(1.1);
+  }
+
+  .tallo {
+    width: 10px;
+    background-color: green;
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 3px;
+  }
+
+  .hoja {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    position: absolute;
+    animation: moverHojas 3s infinite ease-in-out alternate;
+  }
+
+  @keyframes moverHojas {
+    0% { transform: translateX(0px) rotate(0deg); }
+    100% { transform: translateX(4px) rotate(8deg); }
+  }
+
+  .luz {
+    position: absolute;
+    top: -40px;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    opacity: 0.25;
+    filter: blur(40px);
+  }
+
+  /* Panel derecho */
+  .panel-info {
+    flex: 2;
+    background: #fffde7;
+    border-left: 3px solid #a2a674;
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  h1 {
+    text-align: center;
+    color: #2b5a3f;
+  }
+
+  #info {
+    margin-top: 10px;
+    font-size: 16px;
+  }
+
+  #grafica {
+    height: 200px;
+    width: 100%;
+  }
+
+  .botones {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 10px;
+  }
+
+  button {
+    background-color: #3cb371;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  button:hover {
+    background-color: #2e8b57;
+  }
+
+  #tabla {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  #tabla th, #tabla td {
+    border: 1px solid #b7b88a;
+    padding: 6px;
+    text-align: center;
+  }
+
+  #tabla th {
+    background-color: #edf3cb;
+  }
+
+  /* Efectos de clima */
+  .lluvia {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 20px;
+    background: rgba(255,255,255,0.5);
+    animation: caer 1s linear infinite;
+  }
+
+  @keyframes caer {
+    from { transform: translateY(0); }
+    to { transform: translateY(100vh); }
+  }
+
+  /* Vista con lupa */
+  .zoom {
+    transform: scale(1.5);
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<div class="contenedor" id="contenedor">
+  <div class="planta" id="azul"></div>
+  <div class="planta" id="rojo"></div>
+  <div class="planta" id="verde"></div>
+  <div class="planta" id="natural"></div>
+</div>
+
+<div class="panel-info">
+  <div>
+    <h1>🌞 Simulador de Crecimiento de Plantas 🌱</h1>
+    <div id="info">Haz clic en una planta para ver los detalles.</div>
+  </div>
+  <canvas id="grafica"></canvas>
+
+  <div class="botones">
+    <button id="dia">🌤 Día</button>
+    <button id="noche">🌙 Noche</button>
+    <button id="lluvia">🌧 Lluvia</button>
+    <button id="experimental">🧠 Modo Experimental</button>
+  </div>
+
+  <table id="tabla">
+    <thead>
+      <tr><th>Tipo de Luz</th><th>Altura Final (cm)</th><th>Hojas</th></tr>
+    </thead>
+    <tbody id="resultados"></tbody>
+  </table>
+
+  <button id="guardar">💾 Guardar resultados</button>
+</div>
+
+<audio id="musica" src="naturaleza.mp3" loop autoplay></audio>
+
+<script>
+const plantas = {
+  azul: { color: "#3f6efb", luz: "rgba(63,110,251,0.4)", alturaFinal: 120, hojas: 4, velocidad: 0.5,
+          descripcion: "Luz azul: produjo plantas vigorosas, hojas verdes y crecimiento equilibrado (6 cm)." },
+  rojo: { color: "#e64545", luz: "rgba(255,0,0,0.4)", alturaFinal: 160, hojas: 2, velocidad: 0.7,
+          descripcion: "Luz roja: estimuló un crecimiento alto (8 cm) pero hojas delgadas y color menos intenso." },
+  verde: { color: "#6cff6c", luz: "rgba(0,255,0,0.4)", alturaFinal: 70, hojas: 3, velocidad: 0.3,
+          descripcion: "Luz verde: mostró el menor crecimiento (3.5 cm) y hojas pálidas." },
+  natural: { color: "#3cb371", luz: "rgba(255,255,100,0.4)", alturaFinal: 140, hojas: 5, velocidad: 0.55,
+          descripcion: "Luz natural: desarrollo intermedio (7 cm), hojas sanas y verdes." }
+};
+
+let crecimiento = { azul: 0, rojo: 0, verde: 0, natural: 0 };
+let historial = { azul: [], rojo: [], verde: [], natural: [] };
+let clima = "dia";
+let lluviaActiva = false;
+let experimental = false;
+let plantaSeleccionada = null;
+
+function crearPlantas() {
+  Object.keys(plantas).forEach(nombre => {
+    const div = document.getElementById(nombre);
+    const p = plantas[nombre];
+
+    const luz = document.createElement("div");
+    luz.classList.add("luz");
+    luz.style.backgroundColor = p.luz;
+    div.appendChild(luz);
+
+    const tallo = document.createElement("div");
+    tallo.classList.add("tallo");
+    tallo.style.backgroundColor = p.color;
+    div.appendChild(tallo);
+  });
+}
+
+function animarCrecimiento() {
+  Object.keys(plantas).forEach(nombre => {
+    const planta = document.getElementById(nombre);
+    const tallo = planta.querySelector(".tallo");
+    const p = plantas[nombre];
+
+    if (crecimiento[nombre] < p.alturaFinal) {
+      crecimiento[nombre] += p.velocidad;
+    }
+    tallo.style.height = `${crecimiento[nombre]}px`;
+
+    // Hojas animadas
+    planta.querySelectorAll(".hoja").forEach(h => h.remove());
+    for (let i = 0; i < p.hojas; i++) {
+      const hoja = document.createElement("div");
+      hoja.classList.add("hoja");
+      hoja.style.backgroundColor = p.color;
+      hoja.style.left = `${50 + (Math.random() * 30 - 15)}%`;
+      hoja.style.bottom = `${crecimiento[nombre] - i * 15}px`;
+      planta.appendChild(hoja);
+    }
+
+    historial[nombre].push(crecimiento[nombre]);
+  });
+
+  dibujarGrafica();
+  requestAnimationFrame(animarCrecimiento);
+}
+
+function mostrarInfo(nombre) {
+  plantaSeleccionada = nombre;
+  document.querySelectorAll(".planta").forEach(p => p.classList.remove("zoom"));
+  document.getElementById(nombre).classList.add("zoom");
+
+  const p = plantas[nombre];
+  document.getElementById("info").innerHTML = `
+    <h3>🌱 Planta con luz ${nombre}</h3>
+    <p>${p.descripcion}</p>
+    <p><b>Altura actual:</b> ${(crecimiento[nombre]/20).toFixed(1)} cm</p>
+    <p><b>Hojas:</b> ${p.hojas}</p>
+  `;
+}
+
+function dibujarGrafica() {
+  const canvas = document.getElementById("grafica");
+  const ctx = canvas.getContext("2d");
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const colores = { azul: "#3f6efb", rojo: "#e64545", verde: "#6cff6c", natural: "#3cb371" };
+
+  Object.keys(historial).forEach(nombre => {
+    ctx.beginPath();
+    ctx.strokeStyle = colores[nombre];
+    ctx.lineWidth = 2;
+    const valores = historial[nombre];
+    for (let i = 0; i < valores.length; i++) {
+      const x = (i / 400) * canvas.width;
+      const y = canvas.height - (valores[i] / 2);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  });
+}
+
+function cambiarClima(tipo) {
+  const body = document.body;
+  document.querySelectorAll(".lluvia").forEach(r => r.remove());
+  if (tipo === "dia") body.style.background = "linear-gradient(#d4f7da, #c7f0cd)";
+  if (tipo === "noche") body.style.background = "linear-gradient(#00111f, #003355)";
+  if (tipo === "lluvia") {
+    body.style.background = "linear-gradient(#88aabb, #556677)";
+    for (let i = 0; i < 60; i++) {
+      const gota = document.createElement("div");
+      gota.classList.add("lluvia");
+      gota.style.left = `${Math.random()*100}vw`;
+      gota.style.animationDelay = `${Math.random()}s`;
+      document.body.appendChild(gota);
+    }
+  }
+}
+
+function modoExperimental() {
+  experimental = true;
+  alert("🧠 Modo experimental: puedes editar el color y la intensidad de las luces directamente en el código o ajustarlo dinámicamente.");
+  Object.keys(plantas).forEach(nombre => {
+    plantas[nombre].luz = `rgba(${Math.floor(Math.random()*255)},${Math.floor(Math.random()*255)},${Math.floor(Math.random()*255)},0.4)`;
+    document.querySelector(`#${nombre} .luz`).style.backgroundColor = plantas[nombre].luz;
+  });
+}
+
+function mostrarTablaFinal() {
+  const tabla = document.getElementById("resultados");
+  tabla.innerHTML = "";
+  Object.keys(plantas).forEach(nombre => {
+    const fila = `<tr><td>${nombre}</td><td>${(crecimiento[nombre]/20).toFixed(1)}</td><td>${plantas[nombre].hojas}</td></tr>`;
+    tabla.innerHTML += fila;
+  });
+}
+
+function guardarResultados() {
+  mostrarTablaFinal();
+  let texto = "Resultados finales del simulador:\n\n";
+  Object.keys(plantas).forEach(nombre => {
+    texto += `🌱 Luz ${nombre} → ${(crecimiento[nombre]/20).toFixed(1)} cm, ${plantas[nombre].hojas} hojas\n`;
+  });
+
+  const blob = new Blob([texto], { type: "text/plain" });
+  const enlace = document.createElement("a");
+  enlace.href = URL.createObjectURL(blob);
+  enlace.download = "resultados_plantas.txt";
+  enlace.click();
+}
+
+document.getElementById("dia").onclick = () => cambiarClima("dia");
+document.getElementById("noche").onclick = () => cambiarClima("noche");
+document.getElementById("lluvia").onclick = () => cambiarClima("lluvia");
+document.getElementById("experimental").onclick = modoExperimental;
+document.getElementById("guardar").onclick = guardarResultados;
+
+document.querySelectorAll(".planta").forEach(div => {
+  div.addEventListener("click", () => mostrarInfo(div.id));
+});
+
+crearPlantas();
+animarCrecimiento();
+</script>
+
+</body>
+</html>
